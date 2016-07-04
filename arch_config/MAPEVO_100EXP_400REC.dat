@@ -1,0 +1,39 @@
+30
+500
+0
+3
+-250 250
+-280 280
+260 750
+y
+y
+30
+n
+n
+1
+1
+1
+y
+25
+n
+y
+2
+n
+0.157
+1000
+0.1
+0.6
+0.3
+g
+./imagenes/map_left_sobel.tif
+./imagenes/map_right_sobel.tif
+ZNCC
+2000
+2000
+0.3
+0.6
+0.1
+LB
+40
+
+
