@@ -1,4 +1,3 @@
-
 #include "abejas_foto.h"
 #include "algos.h"
 // #define _LINUX_TIME_H 1 /* to get things compile on kernel 2.6.x */
@@ -9,11 +8,9 @@
 #include <errno.h>
 
 /*************** variables globales *********************/
-
 CvMat          *espacios_lower;
 CvMat          *espacios_upper;
 CvMat          *sitios;
-
 IplImage       *buf_F1 = NULL;
 IplImage       *buf_F2 = NULL;
 IplImage       *Im1 = NULL;
@@ -34,11 +31,12 @@ vector < int   >proyec_der;
 vector < double >color_m;
 Machine         m;
 int             inicio = 0;
+int             inicio_maquina = 0;
+int             pop_total;
 
 CvMat          *x1;
 CvMat          *x2;
 CvRNG           rng = cvRNG(0xffffffff);
-
 /****************************************************************/
 
 #define PWC_FPS_SHIFT		16
@@ -85,7 +83,6 @@ main(int argc, char **argv)
     in.close();
 
     // ////////////////////// Loading Projection Matrices:
-    // ////////////////
     Mrotacion_izq = cvCreateMat(3, 3, CV_32FC1);
     Mrotacion_der = cvCreateMat(3, 3, CV_32FC1);
     Vrotacion_izq = cvCreateMat(1, 3, CV_32FC1);
@@ -187,30 +184,24 @@ main(int argc, char **argv)
 
 void
 opencv_abejas::function_main(string arch_config, string nombreImg,
-			     string nombreImgDER)
+				 string nombreImgDER)
 {
     // se lee el archivo de parametros del algoritmo
-
     if (!input_param_file(arch_config))
 	return;
 
     // se prepara la estructura para la población inicial de abejas
-    nextpop = new INDIVIDUAL[pop_size];
+    // Oscar: (exploradoras + recolectoras)
+    pop_total = pop_size + pop_size_for;
+    nextpop = new INDIVIDUAL[pop_total];
     if (nextpop == NULL)
 	nomemory("nextpop in function_main()");
 
-    // agregar las abejas al automata
-    for (int i = 0; i < pop_size; i++) {
-	m.addBee();
-    }
-    cout << endl << "===================Abejas en q0:" << m.
-	countBeesInState(0) << endl;
+    espacios_lower = cvCreateMat(pop_total, nvar_real, CV_32FC1);
+    espacios_upper = cvCreateMat(pop_total, nvar_real, CV_32FC1);
+    sitios = cvCreateMat(pop_total, 1, CV_32FC1);
 
-    espacios_lower = cvCreateMat(pop_size, nvar_real, CV_32FC1);
-    espacios_upper = cvCreateMat(pop_size, nvar_real, CV_32FC1);
-    sitios = cvCreateMat(pop_size, 1, CV_32FC1);
-
-    int             R_pop_size = pop_size;
+    int             R_pop_size = pop_total;
     int             R_pop_size_off = pop_size_off;
     double          R_rate_cross = rate_cross;
     double          R_rate_mut = rate_mut;
@@ -224,18 +215,17 @@ opencv_abejas::function_main(string arch_config, string nombreImg,
     }
 
     select_memory();		// revisa que la poblacion total sea mayor 
-				// a la que se ocupa para el torneo
-
+				// 
+    // a la que se ocupa para el torneo
     time_t          tiempo;
     struct tm      *tmPtr;
     struct timeb    tmb1,
                     tmb2;
 
     MINM = -1;			// use -1 for maximization ; 1 for
-				// minimization
+    // minimization
 
     // ////// Creación de ventanas ////////////
-
     cvNamedWindow("izquierda", 1);
     cvResizeWindow("izquierda", 768, 484);
     cvNamedWindow("derecha", 1);
@@ -244,7 +234,6 @@ opencv_abejas::function_main(string arch_config, string nombreImg,
 
     // comienza ciclo global
     do {
-
 	// ///// Loading Image / Video ///////////
 	buf_F1 = cvLoadImage(nombreImg.c_str(), -1);
 	buf_F2 = cvLoadImage(nombreImgDER.c_str(), -1);
@@ -255,7 +244,6 @@ opencv_abejas::function_main(string arch_config, string nombreImg,
 	cvWaitKey(2);
 	int             maxX = (int) buf_F1->width;
 	int             maxY = (int) buf_F1->height;
-
 /**********************    E T A P A   D E  E X P L O R A C I O N *************************/
 	pts3d_abejas.clear();
 	color_m.clear();
@@ -263,23 +251,26 @@ opencv_abejas::function_main(string arch_config, string nombreImg,
 	proyec_der.clear();
 	gen_no = 0;
 	initialize(maxX, maxY, buf_F1, buf_F2);	// inicializacion de la
-						// poblacion y otras var.
-						// globales
+	                                        // poblacion y otras var.
+	                                        // globales
 	tiempo = time(NULL);
 	tmPtr = localtime(&tiempo);
 	cerr << "Inicio: " << asctime(tmPtr) << endl;	// REGISTRA TIEMPO 
 							// DE INICIO
 	ftime(&tmb1);
 
-	// pasar abejas a exploracion
+	// Oscar: pasar abejas a exploracion
 	for (int i = 0; i < pop_size; i++) {
 	    m.giveFeedback(0, 0);
 	}
-	cout << endl << "===================Abejas en q1:" << m.
-	    countBeesInState(1) << endl;
+	cout << endl << "=Abejas en exploracion:" << m.
+	    countBeesInState(1);
+	cout << endl << "=Abejas en inactividad:" << m.
+	    countBeesInState(0) << endl;
 
 	for (int s = 0; s < pop_size; s++)	// evaluación población
 						// inicial
+                                                // Oscar: solo la de exploracion
 	{
 	    fitness_function_exp(&oldpop[s], maxX, maxY, buf_F1, buf_F2);
 	}
@@ -318,6 +309,7 @@ opencv_abejas::function_main(string arch_config, string nombreImg,
 	    }
 	    best_mu();		// ordenar poblacion de acuerdo al fitness 
 				// y obtener los mu mejores
+	
 	}
 	/*
 	 * Registrar tiempo final sin considerar tiempo de impresion de
@@ -332,145 +324,14 @@ opencv_abejas::function_main(string arch_config, string nombreImg,
 	cerr << "Etapa de Exploración. Milisegundos:" << t_diff << endl;
 	imprime_abejas();
 	guarda_exploradoras();
-
-      /**********************  E T A P A   D E    R E C L U T A M I E N T O *************************/
-
-	// pasar abejas a reclutamiento
-	for (int i = 0; i < pop_size; i++) {
-	    m.giveFeedback(1, 1);
-	    m.giveFeedback(4, 1);
-	}
-	cout << endl << "===================Abejas en q3:" << m.
-	    countBeesInState(3) << endl;
-
-	ftime(&tmb1);
-	asigna_recolectoras();
-	int             sit = pop_size;
-	ftime(&tmb2);
-	t_diff =
-	    (int) (1000.0 * (tmb2.time - tmb1.time) +
-		   (tmb2.millitm - tmb1.millitm));
-	cerr << "Etapa de Reclutamiento. Milisegundos:" << t_diff << endl;
-
-	  /***********
-	  for (int i=0; i<pop_size_off; i++)
-		cout << newpop[i].xreal[0] << " " << newpop[i].xreal[1]  << " " << newpop[i].xreal[2]  << "\t" << newpop[i].obj 
-			 << "\t" << newpop[i].u1 << " " << newpop[i].v1 << " " << newpop[i].u2 << " " << newpop[i].v2 
-			 << "\t" << newpop[i].type << "\t" << newpop[i].nicho << endl;
-	  break;
-	  /************/
-
-      /**********************  E T A P A   D E     R E C O L E C C I O N *************************/
-
-	// pasar abejas a inactividad
-	for (int i = 0; i < pop_size; i++) {
-	    m.giveFeedback(3, 0);
-	}
-	cout << endl << "===================Abejas en q3:" << m.
-	    countBeesInState(3) << endl;
-
-	inicio = 0;
-	ftime(&tmb1);
-
-	for (int i = 0; i < sit; i++)	// por cada sitio que indicó la
-					// abeja exploradora:
-	{
-	    if (CV_MAT_ELEM(*sitios, float, i, 0) > 0) {
-		// prepara las estructuras de datos para la poblacion de
-		// abejas
-		free_all();
-		pop_size = (int) CV_MAT_ELEM(*sitios, float, i, 0);
-		pop_size_off = (int) CV_MAT_ELEM(*sitios, float, i, 0) * 2;
-		rate_cross = rate_cross_rec;
-		rate_mut = rate_mut_rec;
-		rate_rand = rate_rand_rec;
-		verifica_pop();
-		for (int k = 0; k < nvar_real; k++) {
-		    xreal_lower[k] =
-			CV_MAT_ELEM(*espacios_lower, float, i, k);
-		    xreal_upper[k] =
-			CV_MAT_ELEM(*espacios_upper, float, i, k);
-		}
-		// inicializacion de la poblacion y otras var. globales
-		initialize(maxX, maxY, buf_F1, buf_F2);
-
-		for (int s = 0; s < pop_size; s++)	// evaluación
-							// población
-							// inicial
-		{
-		    fitness_function_rec(&oldpop[s], maxX, maxY, buf_F1,
-					 buf_F2);
-		}
-		for (gen_no = 1; gen_no <= max_gen / 2; gen_no++)	// numero 
-									// de 
-									// generacion 
-									// es 
-									// la 
-									// mitad 
-									// de 
-									// la 
-									// etapa 
-									// de 
-									// exploracion
-		{
-		    numero_cross = numero_mut = numero_otros = 0;
-		    // GENERATION OF NEW POPULATION through SELECTION,
-		    // XOVER, MUTATION &RANDOM
-		    generate_new_pop();
-		    // evaluacion
-		    for (int i = 0; i < pop_size_off; i++) {
-			fitness_function_rec(&newpop[i], maxX, maxY,
-					     buf_F1, buf_F2);
-		    }
-		    // juntar poblaciones: mu + lamda
-		    merge_pop();
-		    // sharing
-		    if (sigma_share != 0) {
-			sharing3D();
-		    } else {
-			sharing2D();
-		    }
-		    // ordenar poblacion de acuerdo al fitness y obtener
-		    // los mu mejores
-		    best_mu();
-		}
-		// captura_abejas();
-		imprime_abejas();
-	    }
-	}
-	// registro del tiempo en que se realiza la etapa de recolección
-	ftime(&tmb2);
-	t_diff =
-	    (int) (1000.0 * (tmb2.time - tmb1.time) +
-		   (tmb2.millitm - tmb1.millitm));
-	cerr << "Etapa de Recolección: " << "Milisegundos:" << t_diff <<
-	    endl;
-
-	// Se regresan las variables del espacio de búsqueda a sus
-	// valores originales,
-	// listos para la siguiente iteración
-	free_all();
-	pop_size = R_pop_size;
-	pop_size_off = R_pop_size_off;
-	rate_cross = R_rate_cross;
-	rate_mut = R_rate_mut;
-	rate_rand = R_rate_rand;
-	sigma_share = sigma_share_orig;
-	for (int k = 0; k < nvar_real; k++) {
-	    xreal_lower[k] = xreal_lower_orig[k];
-	    xreal_upper[k] = xreal_upper_orig[k];
-	}
-	inicio = 1;
-    } while (1);
+    } while (0);
     delete[]nextpop;
     cvReleaseMat(&sitios);
     cvReleaseMat(&espacios_lower);
     cvReleaseMat(&espacios_upper);
     cvDestroyWindow("izquierda");
     cvDestroyWindow("derecha");
-
 }
-
 
 /*====================================================================
 SUBROUTINE FOR INPUTTING GLOBAL PARAMETERS -- FILE:
@@ -478,11 +339,15 @@ SUBROUTINE FOR INPUTTING GLOBAL PARAMETERS -- FILE:
 int
 opencv_abejas::input_param_file(string archivo)
 {
-    ifstream        inI;
-    int             k,
-                    num_arch;
-    char            ans;
-    string          una_cad;
+    ifstream
+	inI;
+    int
+	k,
+	num_arch;
+    char
+	ans;
+    string
+	una_cad;
     cout << archivo << " yiyo" << endl;
     inI.open(archivo.c_str());
     getchar();
@@ -612,7 +477,7 @@ opencv_abejas::input_param_file(string archivo)
     inI >> basic_seed;
     cout << "rand seed " << basic_seed << endl;
     inI >> pop_size_off;
-    cout << "tam poblacion hijos" << pop_size_off << endl;
+    cout << "tam poblacion hijos " << pop_size_off << endl;
     inI >> rate_cross;
     cout << "pobl. en cross " << rate_cross << endl;
     inI >> rate_mut;
@@ -643,7 +508,8 @@ opencv_abejas::input_param_file(string archivo)
 	    << endl;
 	return 0;
     }
-    string          correlac;
+    string
+	correlac;
     inI >> correlac;
     if (correlac == "ZNCC")
 	corre = 1;
@@ -674,7 +540,8 @@ opencv_abejas::input_param_file(string archivo)
     inI >> rate_rand_rec;
     cout << "poblacion aleatoria " << rate_rand_rec << endl;
 
-    string          tipo_M;
+    string
+	tipo_M;
     tipo_M.clear();
     inI >> tipo_M;
     cout << tipo_M;
@@ -692,17 +559,27 @@ opencv_abejas::input_param_file(string archivo)
     critical_size = pop_size / 4;
     inI.close();
     return 1;
+}
 
+/*====================================================================
+Prints an error message and terminates the program
+====================================================================*/
+void
+opencv_abejas::nomemory(const char *string)
+{
+    cout << "\nmalloc: out of memory making " << string << "!!" << endl;
+    cout << "\n Program is halting ....." << endl;
+    exit(-1);
 }
 
 void
-opencv_abejas::select_memory()
+                opencv_abejas::select_memory()
 {
-    unsigned        nbytes;
-
-    if (tourneysize > pop_size) {
-	printf("FATAL: Tournament size (%d) > pop_size (%d)\n",
-	       tourneysize, pop_size);
+    unsigned
+	nbytes;
+    if (tourneysize > pop_total) {
+	printf("FATAL: Tournament size (%d) > pop_total (%d)\n",
+	       tourneysize, pop_total);
 	exit(-1);
     };
 }
@@ -710,13 +587,12 @@ opencv_abejas::select_memory()
 /*====================================================================
 Initialses zero'th generation and global parameters
 ====================================================================*/
-
 void
 opencv_abejas::initialize(int maxX, int maxY, IplImage * buf_F1,
-			  IplImage * buf_F2)
+			      IplImage * buf_F2)
 {
     oldpop = newpop = tempop = NULL;
-    oldpop = new INDIVIDUAL[pop_size];
+    oldpop = new INDIVIDUAL[pop_total];
     newpop = new INDIVIDUAL[pop_size_off];
     tempop = new INDIVIDUAL[pop_size + pop_size_off];
 
@@ -728,9 +604,15 @@ opencv_abejas::initialize(int maxX, int maxY, IplImage * buf_F1,
 	nomemory("tempop in initialize()");
 
     if (!inicio) {
-	for (int k = 0; k < pop_size; k++) {
+	for (int k = 0; k < pop_total; k++) {
 	    oldpop[k].obj = 0.0;
 	    oldpop[k].type = 0;
+
+	    // Oscar: agregar las abejas al automata
+            if (!inicio_maquina) {
+	        oldpop[k].state = 0;
+	        m.addBee();
+            }
 
 	    for (int j = 0; j < nvar_real; j++) {
 		oldpop[k].xreal[j] =
@@ -742,10 +624,51 @@ opencv_abejas::initialize(int maxX, int maxY, IplImage * buf_F1,
     } else
 	for (int k = 0; k < pop_size; k++)
 	    copy_individual(&nextpop[k], &oldpop[k]);
-    no_xover = no_mutation = binmut = 0;
-    proyecta(pop_size);
 
+    // Oscar: mostrar las abejas del automata
+    cout << endl << "= Abejas en inactividad:" << m.countBeesInState(0) <<
+	endl;
+    no_xover = no_mutation = binmut = 0;
+    proyecta(pop_total);
 }
+
+/*====================================================================
+Copys contents of one individual into another.
+====================================================================*/
+void
+opencv_abejas::copy_individual(INDIVIDUAL * indiv1,
+				   INDIVIDUAL * indiv2)
+{
+    int             k;
+
+    if (indiv1 == NULL)
+	error_ptr_null("indiv1 in copy_individual");
+    if (indiv2 == NULL)
+	error_ptr_null("indiv2 in copy_individual");
+
+    indiv2->obj = indiv1->obj;
+    indiv2->u1 = indiv1->u1;
+    indiv2->v1 = indiv1->v1;
+    indiv2->u2 = indiv1->u2;
+    indiv2->v2 = indiv1->v2;
+    indiv2->type = indiv1->type;
+
+    for (k = 0; k < nvar_real; k++) {
+	indiv2->xreal[k] = indiv1->xreal[k];
+    }
+}
+
+/*==============================================================
+Gives error message of null pointer  and terminates the program.
+==============================================================*/
+void
+opencv_abejas::error_ptr_null(const char *string)
+{
+    cout << "\n Error !! Pointer " << string << "found Null !" << endl;
+    cout << "\n Program is halting ....." << endl;
+    exit(-1);
+}
+
 /**********************************************************
  * Proyecta las coordenadas 3D de las abejas en cada imagen 2D
  * **********************************************************/
@@ -833,123 +756,6 @@ opencv_abejas::proyecta(int popu, int op)
     cvReleaseMat(&x2);
 }
 
-/********************************************************************
- * Función de aptitud para las abejas exploradoras
- * *****************************************************************/
-void
-opencv_abejas::fitness_function_exp(INDIVIDUAL * indv, int maxX, int maxY,
-				    IplImage * buf_F1, IplImage * buf_F2)
-{
-    int             u1,
-                    v1,
-                    u2,
-                    v2;
-    double          g_12,
-                    f_12,
-                    F;
-
-    u1 = (int) indv->u1;
-    if (modf(indv->u1, &F) >= 0.5)
-	u1++;
-    v1 = (int) indv->v1;
-    if (modf(indv->v1, &F) >= 0.5)
-	v1++;
-    u2 = (int) indv->u2;
-    if (modf(indv->u2, &F) >= 0.5)
-	u2++;
-    v2 = (int) indv->v2;
-    if (modf(indv->v2, &F) >= 0.5)
-	v2++;
-
-    if ((u1 > maxY - 10 || u1 < 10 || v1 < 10 || v1 > maxX - 10) ||
-	(u2 > maxY - 10 || u2 < 10 || v2 < 10 || v2 > maxX - 10)) {
-	// cout<<"se paso:"<<u1<<","<<v1<<"<-->"<<u2<<","<<v2<<endl;
-	indv->obj = -10000.0;
-	return;
-    }
-    // /////////// Compute Texture (statistics) ///////////////////
-
-    double          f1 = opencv_algos::rough(buf_F1, u1, v1);
-    double          f2 = opencv_algos::rough(buf_F2, u2, v2);
-
-    if (fabs(f2 - f1) > 0.05) {
-	indv->obj = 0.0;
-	return;
-    }
-    if ((f2 + f1) / 2 < 0.70) {
-	indv->obj = 0.0;
-	return;
-    }
-    // /////////// Compute sobel ///////////////////
-    g_12 =
-	(opencv_algos::sobel(buf_F1, u1, v1) / 255.0) *
-	(opencv_algos::sobel(buf_F2, u2, v2) / 255.0);
-
-    // /////////// Compute ZNCC correlation /////////////////
-    f_12 = correlacionZNCC(u1, v1, u2, v2, buf_F1, buf_F2, maxX, maxY);
-
-    if (f_12 >= 0.95) {
-	F = g_12 * f_12;
-    } else {
-	F = -10000.0;
-    }
-
-    // Write output:
-    indv->obj = F;
-
-}
-
-/********************************************************************
- * Función de aptitud para las abejas recolectoras
- * *****************************************************************/
-void
-opencv_abejas::fitness_function_rec(INDIVIDUAL * indv, int maxX, int maxY,
-				    IplImage * buf_F1, IplImage * buf_F2)
-{
-    int             u1,
-                    v1,
-                    u2,
-                    v2;
-    double          g_12,
-                    f_12,
-                    F;
-
-    u1 = (int) indv->u1;
-    if (modf(indv->u1, &F) >= 0.5)
-	u1++;
-    v1 = (int) indv->v1;
-    if (modf(indv->v1, &F) >= 0.5)
-	v1++;
-    u2 = (int) indv->u2;
-    if (modf(indv->u2, &F) >= 0.5)
-	u2++;
-    v2 = (int) indv->v2;
-    if (modf(indv->v2, &F) >= 0.5)
-	v2++;
-
-    if ((u1 > maxY - 10 || u1 < 10 || v1 < 10 || v1 > maxX - 10) ||
-	(u2 > maxY - 10 || u2 < 10 || v2 < 10 || v2 > maxX - 10)) {
-	indv->obj = -10000.0;
-	return;
-    }
-    // /////////// Compute Texture (statistics) ///////////////////
-    double          h_izq = opencv_algos::rough(buf_F1, u1, v1);
-    double          h_der = opencv_algos::rough(buf_F2, u2, v2);
-
-    g_12 = h_der * h_izq;
-
-    // /////////// Compute ZNCC correlation ///////////////////
-    f_12 = correlacionZNCC(u1, v1, u2, v2, buf_F1, buf_F2, maxX, maxY);
-
-    if ((f_12 >= 0.95) && (fabs(h_der - h_izq) < 0.05)) {
-	F = g_12 * f_12;
-    } else {
-	F = -10000.0;
-    }
-    // Write output:
-    indv->obj = F;
-}
-
 // ////////////////////////////////////////////////////////////////////////////////
 // 
 // Función que se asegura de que el numero de individuos generados por
@@ -986,6 +792,7 @@ opencv_abejas::verifica_pop()
 	// "<<num_mut + num_cross + num_rand<<endl;
 	pop_size_off = num_mut + num_cross + num_rand;
 	band = 0;
+	// Oscar: newpop = new INDIVIDUAL[pop_size_off]; ?
     }
     if (num_cross % 2 != 0) {
 	if (num_rand > 0) {
@@ -999,110 +806,6 @@ opencv_abejas::verifica_pop()
     rate_cross = num_cross;
     rate_mut = num_mut;
     rate_rand = num_rand;
-}
-
-/*====================================================================
-Copys contents of one individual into another.
-====================================================================*/
-void
-opencv_abejas::copy_individual(INDIVIDUAL * indiv1, INDIVIDUAL * indiv2)
-{
-    int             k;
-
-    if (indiv1 == NULL)
-	error_ptr_null("indiv1 in copy_individual");
-    if (indiv2 == NULL)
-	error_ptr_null("indiv2 in copy_individual");
-
-    for (k = 0; k < nvar_real; k++) {
-	indiv2->xreal[k] = indiv1->xreal[k];
-	indiv2->obj = indiv1->obj;
-	indiv2->u1 = indiv1->u1;
-	indiv2->v1 = indiv1->v1;
-	indiv2->u2 = indiv1->u2;
-	indiv2->v2 = indiv1->v2;
-	indiv2->type = indiv1->type;
-    }
-}
-
-
-/*====================================================================
-Prints an error message and terminates the program
-====================================================================*/
-void
-opencv_abejas::nomemory(const char *string)
-{
-    cout << "\nmalloc: out of memory making " << string << "!!" << endl;
-    cout << "\n Program is halting ....." << endl;
-    exit(-1);
-}
-
-/*==============================================================
-Gives error message of null pointer  and terminates the program.
-==============================================================*/
-void
-opencv_abejas::error_ptr_null(const char *string)
-{
-    cout << "\n Error !! Pointer " << string << "found Null !" << endl;
-    cout << "\n Program is halting ....." << endl;
-    exit(-1);
-}
-
-/**************************************************************
- * Funcion de correlacion cruzada normalizada en cero
- * ***********************************************************/
-double
-opencv_abejas::correlacionZNCC(int u1, int v1, int u2, int v2,
-			       IplImage * buf_F1, IplImage * buf_F2,
-			       int maxX, int maxY)
-{
-    int             k,
-                    l,
-                    int_F1,
-                    int_F2,
-                    ventana = 11,
-	paso_vent;
-    double          sumnum,
-                    sumden1,
-                    sumden2,
-                    my_int_F1,
-                    my_int_F2;
-
-    paso_vent = (ventana - 1) / 2;
-
-
-    if ((u2 >= paso_vent) && (u2 < maxY - paso_vent) && (v2 >= paso_vent)
-	&& (v2 < maxX - paso_vent) && (u1 >= paso_vent)
-	&& (u1 < maxY - paso_vent) && (v1 >= paso_vent)
-	&& (v1 < maxX - paso_vent)) {
-	my_int_F1 = 0.0;
-	my_int_F2 = 0.0;
-
-	for (k = -paso_vent; k <= paso_vent; k++) {
-	    for (l = -paso_vent; l <= paso_vent; l++) {
-		int_F1 = (int) cvGetReal2D(buf_F1, u1 + l, v1 + k);
-		int_F2 = (int) cvGetReal2D(buf_F2, u2 + l, v2 + k);
-		my_int_F1 += int_F1;
-		my_int_F2 += int_F2;
-	    }
-	}
-	my_int_F1 = my_int_F1 / (ventana * ventana);
-	my_int_F2 = my_int_F2 / (ventana * ventana);
-	sumnum = 0.0;
-	sumden1 = 0.0;
-	sumden2 = 0.0;
-
-	for (k = -paso_vent; k <= paso_vent; k++) {
-	    for (l = -paso_vent; l <= paso_vent; l++) {
-		int_F1 = (int) cvGetReal2D(buf_F1, u1 + l, v1 + k);
-		int_F2 = (int) cvGetReal2D(buf_F2, u2 + l, v2 + k);
-		sumnum += (int_F1 - my_int_F1) * (int_F2 - my_int_F2);
-		sumden1 += (int_F1 - my_int_F1) * (int_F1 - my_int_F1);
-		sumden2 += (int_F2 - my_int_F2) * (int_F2 - my_int_F2);
-	    }
-	}
-	return (sumnum / (sqrt(sumden1 * sumden2)));
-    }
 }
 
 /*====================================================================
@@ -1170,337 +873,8 @@ opencv_abejas::generate_new_pop()
 	}
 	k++;
     }
-    proyecta(pop_size_off, 2);
+    proyecta(pop_size_off, 2); // Oscar: seria mejor hacer una funcion que proyecte un punto especifico?
 }
-
-void
-opencv_abejas::preselect_tour()	// inicializa orden de individuos
-{
-    reset1();			// rompe el orden en que estan los
-				// individuos para que el torneo escoga de 
-				// manera aleatoria
-    tourneypos = 0;
-}
-
-/******************************************************
- * Función de selección por torneo
- * *************************************************/
-int
-opencv_abejas::tour_select()
-{
-    int             pick,
-                    winner,
-                    i;
-
-    /*
-     * If remaining members not enough for a tournament, then reset list 
-     */
-  start_select:
-    if ((pop_size - tourneypos) < tourneysize) {
-	reset1();
-	tourneypos = 0;
-    }
-
-    /*
-     * Select tourneysize structures at random and conduct a tournament 
-     */
-    winner = tourneylist[tourneypos];
-    if (pop_size < 2)
-	return (winner);
-    /*
-     * Added by RBA 
-     */
-    if (winner < 0 || winner > pop_size - 1) {
-	cout << "\n Warning !! ERROR1 tourpos = " << tourneypos <<
-	    " winner = " << winner << endl;
-	preselect_tour();
-	goto start_select;
-    }
-    for (i = 1; i < tourneysize; i++) {
-	pick = tourneylist[i + tourneypos];
-	/*
-	 * Added by RBA 
-	 */
-	if (pick < 0 || pick > pop_size - 1) {
-	    preselect_tour();
-	    printf("\n Warning !! ERROR in pick gen");
-	    cout << pick << "," << i << "," << tourneypos << "," <<
-		pop_size;
-	    getchar();
-	    goto start_select;
-	}
-	// case 1:
-	if (MINM * oldpop[pick].obj < MINM * oldpop[winner].obj)
-	    winner = pick;
-    }
-
-    /*
-     * Update tourneypos 
-     */
-    tourneypos += tourneysize;
-    return (winner);
-}
-
-void
-opencv_abejas::reset1()
-/*
- * Name changed from reset because of clash with lib. function - RBA 
- */
-/*
- * Shuffles the tourneylist at random 
- */
-{
-    int             i,
-                    rand1,
-                    rand2,
-                    temp_site;
-
-    for (i = 0; i < pop_size; i++)
-	tourneylist[i] = i;
-
-    for (i = 0; i < pop_size; i++) {
-
-	rand1 = cvRandInt(&rng) % pop_size;
-	rand2 = cvRandInt(&rng) % pop_size;
-	temp_site = tourneylist[rand1];
-	tourneylist[rand1] = tourneylist[rand2];
-	tourneylist[rand2] = temp_site;
-    }
-}
-
-/*====================================================================
-CROSS - OVER  USING strategy of uniform 50% variables
-  For one variable problem, it is crossed over as usual.
-  For multivariables, each variable is crossed over with a probability
-  of 50 % , each time generating a new random beta.
-====================================================================*/
-void
-opencv_abejas::cross_over(int first, int second, int childno1,
-			  int childno2)
-{
-    double          difference,
-                    x_mean,
-                    beta;
-    double          u = 0.0;
-    int             site,
-                    k,
-                    x_s;
-
-    x_s = 0;
-    if (1) {			/* Cross over has to be done */
-	no_xover++;
-	if (nvar_real > 0) {
-	    for (site = 0; site < nvar_real; site++) {
-		create_children(oldpop[first].xreal[site],
-				oldpop[second].xreal[site],
-				&(newpop[childno1].xreal[site]),
-				&(newpop[childno2].xreal[site]),
-				xreal_lower[site], xreal_upper[site], &u);
-	    }
-	}
-    } else {			/* Passing x-values straight */
-
-	for (site = 0; site < nvar_real; site++) {
-	    newpop[childno1].xreal[site] = oldpop[first].xreal[site];
-	    newpop[childno2].xreal[site] = oldpop[second].xreal[site];
-	}
-    }
-}
-
-/*====================================================================
-Creates two children from parents p1 and p2, stores them in addresses
-pointed by c1 and c2.  low and high are the limits for x values and
-rand_var is the random variable used to create children points.
-====================================================================*/
-void
-opencv_abejas::create_children(double p1, double p2, double *c1,
-			       double *c2, double low, double high,
-			       double *rand_var)
-{
-    double          difference,
-                    x_mean,
-                    beta,
-                    v2,
-                    v1;
-    double          u,
-                    distance,
-                    umax,
-                    temp,
-                    alpha;
-    int             flag;
-
-    if (c1 == NULL)
-	error_ptr_null("c1 in create_children");
-    if (c2 == NULL)
-	error_ptr_null("c2 in create_children");
-    if (rand_var == NULL)
-	error_ptr_null("rand_var in create_children");
-    flag = 0;
-    if (p1 > p2) {
-	temp = p1;
-	p1 = p2;
-	p2 = temp;
-	flag = 1;
-    }
-    x_mean = (p1 + p2) * 0.5;
-    difference = p2 - p1;
-    if ((p1 - low) < (high - p2))
-	distance = p1 - low;
-    else
-	distance = high - p2;
-    if (distance < 0.0)
-	distance = 0.0;
-    if (RIGID && (difference > EPSILON)) {
-	alpha = 1.0 + (2.0 * distance / difference);
-	umax =
-	    1.0 -
-	    (0.5 / pow((double) alpha, (double) (n_distribution_c + 1.0)));
-	(*rand_var) = umax * cvRandReal(&rng);
-    } else
-	(*rand_var) = cvRandReal(&rng);
-    beta = get_beta(*rand_var);
-    if (fabs(difference * beta) > INFINITY)
-	beta = INFINITY / difference;
-    v2 = x_mean + (beta * 0.5 * difference);
-    v1 = x_mean - (beta * 0.5 * difference);
-
-    if (v2 < low)
-	v2 = low;
-    if (v2 > high)
-	v2 = high;
-    if (v1 < low)
-	v2 = low;
-    if (v1 > high)
-	v2 = high;
-    *c2 = v2;
-    *c1 = v1;
-    if (flag == 1) {
-	temp = *c1;
-	*c1 = *c2;
-	*c2 = temp;
-    }
-}
-
-
-/*===================================================================
-Mutation Using polynomial probability distribution. Picks up a random
-site and generates a random number u between -1 to 1, ( or between
-minu to maxu in case of rigid boudaries) and calls the routine
-get_delta() to calculate the actual shift of the value.
-====================================================================*/
-void
-opencv_abejas::mutation(INDIVIDUAL * indiv)
-{
-    double          distance1,
-                    x,
-                    delta_l,
-                    delta_u,
-                    delta,
-                    u;
-    int             k,
-                    site;
-
-    if (indiv == NULL)
-	error_ptr_null("indiv in mutation");
-
-    if (nvar_real > 0)
-	for (site = 0; site < nvar_real; site++) {
-	    no_mutation++;
-	    if (RIGID) {
-		x = indiv->xreal[site];
-		distance1 = xreal_lower[site] - x;
-		delta_l =
-		    distance1 / (xreal_upper[site] - xreal_lower[site]);
-		if (delta_l < -1.0)
-		    delta_l = -1.0;
-		distance1 = xreal_upper[site] - x;
-		delta_u =
-		    distance1 / (xreal_upper[site] - xreal_lower[site]);
-		if (delta_u > 1.0)
-		    delta_u = 1.0;
-		if (-1.0 * delta_l < delta_u)
-		    delta_u = -1.0 * delta_l;
-		else
-		    delta_l = -1.0 * delta_u;
-	    } else {
-		delta_l = -1.0;
-		delta_u = 1.0;
-	    }
-	    u = (double) cvRandReal(&rng);
-	    /*
-	     * calculation of actual delta value 
-	     */
-	    delta =
-		get_delta(u, delta_l,
-			  delta_u) * (xreal_upper[site] -
-				      xreal_lower[site]);
-	    indiv->xreal[site] += delta;
-
-	    if (indiv->xreal[site] < xreal_lower[site])
-		indiv->xreal[site] = xreal_lower[site];
-	    if (indiv->xreal[site] > xreal_upper[site])
-		indiv->xreal[site] = xreal_upper[site];
-	}
-}
-
-/*===================================================================
-Calculates beta value for given random number u (from 0 to 1)
-If input random numbers (u) are uniformly distributed for a set of
-inputs, this results in uniform distribution of beta values in case
-of BLX , and Binary Probability distribution simulation in case of
-SBX.
-
-====================================================================*/
-double
-opencv_abejas::get_beta(double u)
-{
-    double          beta;
-
-    if (1.0 - u < EPSILON)
-	u = 1.0 - EPSILON;
-    if (u < 0.0)
-	u = 0.0;
-    if (u < 0.5)
-	beta = pow(2.0 * u, (1.0 / (n_distribution_c + 1.0)));
-    else
-	beta = pow((0.5 / (1.0 - u)), (1.0 / (n_distribution_c + 1.0)));
-    return beta;
-}
-
-/*==================================================================
-For given u value such that   -1 <= u <= 1, this routine returns a
-value of delta from -1 to 1. Exact value of delta depends on specified
-n_distribution. This is called by mutation().
-====================================================================*/
-double
-opencv_abejas::get_delta(double u, double delta_l, double delta_u)
-{
-    double          delta,
-                    aa;
-
-    if (u >= 1.0 - 1.0e-9)
-	delta = delta_u;
-    else if (u <= 0.0 + 1.0e-9)
-	delta = delta_l;
-    else {
-	if (u < 0.5) {
-	    aa = 2.0 * u + (1.0 - 2.0 * u) * pow((1 + delta_l),
-						 (n_distribution_m + 1.0));
-	    delta = pow(aa, (1.0 / (n_distribution_m + 1.0))) - 1.0;
-	} else {
-	    aa = 2.0 * (1 - u) + 2.0 * (u - 0.5) * pow((1 - delta_u),
-						       (n_distribution_m +
-							1.0));
-	    delta = 1.0 - pow(aa, (1.0 / (n_distribution_m + 1.0)));
-	}
-    }
-    if (delta < -1.0 || delta > 1.0) {
-	cout << "Error in mutation!! delta = " << delta << endl;
-	exit(-1);
-    }
-    return (delta);
-}
-
 
 // =======================================================================
 // "Junta dos poblaciones: .";
@@ -1520,6 +894,72 @@ opencv_abejas::merge_pop()
      * for(int h = 0; h < pop_size+pop_size_off;h++)
      * cout<<tempop[h].obj<<endl; getchar();
      */
+}
+
+/********************************************************************
+ * Función de aptitud para las abejas exploradoras
+ * *****************************************************************/
+void
+opencv_abejas::fitness_function_exp(INDIVIDUAL * indv, int maxX, int maxY,
+				    IplImage * buf_F1, IplImage * buf_F2)
+{
+    int             u1,
+                    v1,
+                    u2,
+                    v2;
+    double          g_12,
+                    f_12,
+                    F;
+
+    u1 = (int) indv->u1;
+    if (modf(indv->u1, &F) >= 0.5)
+	u1++;
+    v1 = (int) indv->v1;
+    if (modf(indv->v1, &F) >= 0.5)
+	v1++;
+    u2 = (int) indv->u2;
+    if (modf(indv->u2, &F) >= 0.5)
+	u2++;
+    v2 = (int) indv->v2;
+    if (modf(indv->v2, &F) >= 0.5)
+	v2++;
+
+    if ((u1 > maxY - 10 || u1 < 10 || v1 < 10 || v1 > maxX - 10) ||
+	(u2 > maxY - 10 || u2 < 10 || v2 < 10 || v2 > maxX - 10)) {
+	// cout<<"se paso:"<<u1<<","<<v1<<"<-->"<<u2<<","<<v2<<endl;
+	indv->obj = -10000.0;
+	return;
+    }
+    // /////////// Compute Texture (statistics) ///////////////////
+
+    double          f1 = opencv_algos::rough(buf_F1, u1, v1);
+    double          f2 = opencv_algos::rough(buf_F2, u2, v2);
+
+    if (fabs(f2 - f1) > 0.05) {
+	indv->obj = 0.0;
+	return;
+    }
+    if ((f2 + f1) / 2 < 0.70) {
+	indv->obj = 0.0;
+	return;
+    }
+    // /////////// Compute sobel ///////////////////
+    g_12 =
+	(opencv_algos::sobel(buf_F1, u1, v1) / 255.0) *
+	(opencv_algos::sobel(buf_F2, u2, v2) / 255.0);
+
+    // /////////// Compute ZNCC correlation /////////////////
+    f_12 = correlacionZNCC(u1, v1, u2, v2, buf_F1, buf_F2, maxX, maxY);
+
+    if (f_12 >= 0.95) {
+	F = g_12 * f_12;
+    } else {
+	F = -10000.0;
+    }
+
+    // Write output:
+    indv->obj = F;
+
 }
 
 
@@ -1609,6 +1049,253 @@ opencv_abejas::sh(int uno, int dos)
 	return 0.0;
 }
 
+void
+opencv_abejas::preselect_tour()	// inicializa orden de individuos
+{
+    reset1();			// rompe el orden en que estan los
+				// individuos para que el torneo escoga de 
+				// manera aleatoria
+    tourneypos = 0;
+}
+
+/***********************************************************************
+ * Función que ordena la población de acuerdo al resultado en la función de aptitud
+ * y regresa las "mu" mejores
+ * ***********************************************************************/
+void
+opencv_abejas::best_mu()
+{
+    CvMat          *M = cvCreateMat(pop_size + pop_size_off, 2, CV_32FC1);
+
+    for (int i = 0; i < pop_size + pop_size_off; i++) {
+	CV_MAT_ELEM(*M, float, i, 0) = tempop[i].obj * MINM;
+	CV_MAT_ELEM(*M, float, i, 1) = (float) i;
+    }
+    opencv_algos::quickSort(M, pop_size + pop_size_off);
+    for (int i = 0; i < pop_size; i++) {
+	copy_individual(&tempop[(int) CV_MAT_ELEM(*M, float, i, 1)],
+			&oldpop[i]);
+    }
+}
+
+/******************************************************
+ * Función de selección por torneo
+ * *************************************************/
+int
+opencv_abejas::tour_select()
+{
+    int             pick,
+                    winner,
+                    i;
+
+    /*
+     * If remaining members not enough for a tournament, then reset list 
+     */
+  start_select:
+    if ((pop_size - tourneypos) < tourneysize) {
+	reset1(); // Oscar: seria optimo elegir dos enteros aleatorios en vez de reordenar toda la poblacion varias veces?
+	tourneypos = 0;
+    }
+
+    /*
+     * Select tourneysize structures at random and conduct a tournament 
+     */
+    winner = tourneylist[tourneypos];
+    if (pop_size < 2)
+	return (winner);
+    /*
+     * Added by RBA 
+     */
+    if (winner < 0 || winner > pop_size - 1) {
+	cout << "\n Warning !! ERROR1 tourpos = " << tourneypos <<
+	    " winner = " << winner << endl;
+	preselect_tour();
+	goto start_select;
+    }
+    for (i = 1; i < tourneysize; i++) {
+	pick = tourneylist[i + tourneypos];
+	/*
+	 * Added by RBA 
+	 */
+	if (pick < 0 || pick > pop_size - 1) {
+	    preselect_tour();
+	    printf("\n Warning !! ERROR in pick gen");
+	    cout << pick << "," << i << "," << tourneypos << "," <<
+		pop_size;
+	    getchar();
+	    goto start_select;
+	}
+	// case 1:
+	if (MINM * oldpop[pick].obj < MINM * oldpop[winner].obj)
+	    winner = pick;
+    }
+
+    /*
+     * Update tourneypos 
+     */
+    tourneypos += tourneysize;
+    return (winner);
+}
+
+/*===================================================================
+Mutation Using polynomial probability distribution. Picks up a random
+site and generates a random number u between -1 to 1, ( or between
+minu to maxu in case of rigid boudaries) and calls the routine
+get_delta() to calculate the actual shift of the value.
+====================================================================*/
+void
+opencv_abejas::mutation(INDIVIDUAL * indiv)
+{
+    double          distance1,
+                    x,
+                    delta_l,
+                    delta_u,
+                    delta,
+                    u;
+    int             k,
+                    site;
+
+    if (indiv == NULL)
+	error_ptr_null("indiv in mutation");
+
+    if (nvar_real > 0)
+	for (site = 0; site < nvar_real; site++) {
+	    no_mutation++;
+	    if (RIGID) {
+		x = indiv->xreal[site];
+		distance1 = xreal_lower[site] - x;
+		delta_l =
+		    distance1 / (xreal_upper[site] - xreal_lower[site]);
+		if (delta_l < -1.0)
+		    delta_l = -1.0;
+		distance1 = xreal_upper[site] - x;
+		delta_u =
+		    distance1 / (xreal_upper[site] - xreal_lower[site]);
+		if (delta_u > 1.0)
+		    delta_u = 1.0;
+		if (-1.0 * delta_l < delta_u)
+		    delta_u = -1.0 * delta_l;
+		else
+		    delta_l = -1.0 * delta_u;
+	    } else {
+		delta_l = -1.0;
+		delta_u = 1.0;
+	    }
+	    u = (double) cvRandReal(&rng);
+	    /*
+	     * calculation of actual delta value 
+	     */
+	    delta =
+		get_delta(u, delta_l,
+			  delta_u) * (xreal_upper[site] -
+				      xreal_lower[site]);
+	    indiv->xreal[site] += delta;
+
+	    if (indiv->xreal[site] < xreal_lower[site])
+		indiv->xreal[site] = xreal_lower[site];
+	    if (indiv->xreal[site] > xreal_upper[site])
+		indiv->xreal[site] = xreal_upper[site];
+	}
+}
+
+/*====================================================================
+CROSS - OVER  USING strategy of uniform 50% variables
+  For one variable problem, it is crossed over as usual.
+  For multivariables, each variable is crossed over with a probability
+  of 50 % , each time generating a new random beta.
+====================================================================*/
+void
+opencv_abejas::cross_over(int first, int second, int childno1,
+			  int childno2)
+{
+    double          difference,
+                    x_mean,
+                    beta;
+    double          u = 0.0;
+    int             site,
+                    k,
+                    x_s;
+
+    x_s = 0;
+    if (1) {			/* Cross over has to be done */
+	no_xover++;
+	if (nvar_real > 0) {
+	    for (site = 0; site < nvar_real; site++) {
+		create_children(oldpop[first].xreal[site],
+				oldpop[second].xreal[site],
+				&(newpop[childno1].xreal[site]),
+				&(newpop[childno2].xreal[site]),
+				xreal_lower[site], xreal_upper[site], &u);
+	    }
+	}
+    } else {			/* Passing x-values straight */
+
+	for (site = 0; site < nvar_real; site++) {
+	    newpop[childno1].xreal[site] = oldpop[first].xreal[site];
+	    newpop[childno2].xreal[site] = oldpop[second].xreal[site];
+	}
+    }
+}
+
+
+/**************************************************************
+ * Funcion de correlacion cruzada normalizada en cero
+ * ***********************************************************/
+double
+opencv_abejas::correlacionZNCC(int u1, int v1, int u2, int v2,
+			       IplImage * buf_F1, IplImage * buf_F2,
+			       int maxX, int maxY)
+{
+    int             k,
+                    l,
+                    int_F1,
+                    int_F2,
+                    ventana = 11,
+	paso_vent;
+    double          sumnum,
+                    sumden1,
+                    sumden2,
+                    my_int_F1,
+                    my_int_F2;
+
+    paso_vent = (ventana - 1) / 2;
+
+
+    if ((u2 >= paso_vent) && (u2 < maxY - paso_vent) && (v2 >= paso_vent)
+	&& (v2 < maxX - paso_vent) && (u1 >= paso_vent)
+	&& (u1 < maxY - paso_vent) && (v1 >= paso_vent)
+	&& (v1 < maxX - paso_vent)) {
+	my_int_F1 = 0.0;
+	my_int_F2 = 0.0;
+
+	for (k = -paso_vent; k <= paso_vent; k++) {
+	    for (l = -paso_vent; l <= paso_vent; l++) {
+		int_F1 = (int) cvGetReal2D(buf_F1, u1 + l, v1 + k);
+		int_F2 = (int) cvGetReal2D(buf_F2, u2 + l, v2 + k);
+		my_int_F1 += int_F1;
+		my_int_F2 += int_F2;
+	    }
+	}
+	my_int_F1 = my_int_F1 / (ventana * ventana);
+	my_int_F2 = my_int_F2 / (ventana * ventana);
+	sumnum = 0.0;
+	sumden1 = 0.0;
+	sumden2 = 0.0;
+
+	for (k = -paso_vent; k <= paso_vent; k++) {
+	    for (l = -paso_vent; l <= paso_vent; l++) {
+		int_F1 = (int) cvGetReal2D(buf_F1, u1 + l, v1 + k);
+		int_F2 = (int) cvGetReal2D(buf_F2, u2 + l, v2 + k);
+		sumnum += (int_F1 - my_int_F1) * (int_F2 - my_int_F2);
+		sumden1 += (int_F1 - my_int_F1) * (int_F1 - my_int_F1);
+		sumden2 += (int_F2 - my_int_F2) * (int_F2 - my_int_F2);
+	    }
+	}
+	return (sumnum / (sqrt(sumden1 * sumden2)));
+    }
+}
+
+
 double
 opencv_abejas::distanc(int one, int two, int op)
 {
@@ -1645,166 +1332,161 @@ opencv_abejas::distanc(int one, int two, int op)
     return result;
 }
 
-/***********************************************************************
- * Función que ordena la población de acuerdo al resultado en la función de aptitud
- * y regresa las "mu" mejores
- * ***********************************************************************/
 void
-opencv_abejas::best_mu()
+opencv_abejas::reset1()
+/*
+ * Name changed from reset because of clash with lib. function - RBA 
+ */
+/*
+ * Shuffles the tourneylist at random 
+ */
 {
-    CvMat          *M = cvCreateMat(pop_size + pop_size_off, 2, CV_32FC1);
+    int             i,
+                    rand1,
+                    rand2,
+                    temp_site;
 
-    for (int i = 0; i < pop_size + pop_size_off; i++) {
-	CV_MAT_ELEM(*M, float, i, 0) = tempop[i].obj * MINM;
-	CV_MAT_ELEM(*M, float, i, 1) = (float) i;
-    }
-    opencv_algos::quickSort(M, pop_size + pop_size_off);
-    for (int i = 0; i < pop_size; i++) {
-	copy_individual(&tempop[(int) CV_MAT_ELEM(*M, float, i, 1)],
-			&oldpop[i]);
+    for (i = 0; i < pop_size; i++)
+	tourneylist[i] = i;
+
+    for (i = 0; i < pop_size; i++) {
+
+	rand1 = cvRandInt(&rng) % pop_size;
+	rand2 = cvRandInt(&rng) % pop_size;
+	temp_site = tourneylist[rand1];
+	tourneylist[rand1] = tourneylist[rand2];
+	tourneylist[rand2] = temp_site;
     }
 }
 
-
-
-
-/*******************************************************************
- * función de la etapa de reclutamiento que define cuantas recolectoras
- * se le asignarán a cada sitio señalado por las exploradoras
- * ****************************************************************/
-void
-opencv_abejas::asigna_recolectoras()
+/*==================================================================
+For given u value such that   -1 <= u <= 1, this routine returns a
+value of delta from -1 to 1. Exact value of delta depends on specified
+n_distribution. This is called by mutation().
+====================================================================*/
+double
+opencv_abejas::get_delta(double u, double delta_l, double delta_u)
 {
-    // asigna numero de recolectoras
-    double          val = 0.0,
-	max,
-	min,
-	dimensiones,
-	volumen = 1.0;
-    CvMat          *disp = cvCreateMat(pop_size, 1, CV_32FC1);
+    double          delta,
+                    aa;
 
-    for (int i = 0; i < pop_size; i++) {
-	CV_MAT_ELEM(*disp, float, i, 0) =
-	    sqrt(square(oldpop[i].u1 - oldpop[i].u2) +
-		 square(oldpop[i].v1 - oldpop[i].v2));
-	val += fabs(oldpop[i].obj);
-    }
-    cvMinMaxLoc(disp, &min, &max);
-    for (int i = 0; i < pop_size; i++) {
-	double          num,
-	                res;
-	num = fabs(oldpop[i].obj) / val * (double) pop_size_for;
-	if (num <= 3.0) {
-	    num = 0;
-	}
-	if (modf(num, &res) >= 0.5)
-	    CV_MAT_ELEM(*sitios, float, i, 0) = (int) (num) + 1;
-	else
-	    CV_MAT_ELEM(*sitios, float, i, 0) = (int) (num);
-
-    }
-
-    // asigna espacio
-
-    for (int i = 0; i < nvar_real; i++) {
-	volumen *= fabs(xreal_lower[i]) + fabs(xreal_upper[i]);
-    }
-    dimensiones = pow(volumen / pop_size, (1.0 / 3.0));
-    for (int i = 0; i < pop_size; i++) {
-	double          u = CV_MAT_ELEM(*disp, float, i, 0) / max,
-	                f,
-	                aux,
-	                res;
-	int             dim_penal = (int) dimensiones;
-
-	f = 0.5 * (1 - u) + 1 * u;
-	aux = dimensiones * f;
-	dim_penal = (int) aux;
-	if (modf(aux, &res) >= 0.5)
-	    dim_penal++;
-	for (int j = 0; j < nvar_real; j++) {
-	    CV_MAT_ELEM(*espacios_lower, float, i, j) =
-		oldpop[i].xreal[j] - dim_penal / 2;
-	    if (CV_MAT_ELEM(*espacios_lower, float, i, j) < xreal_lower[j])
-		     
-		     
-		     
-		     
-		     
-		     
-		    CV_MAT_ELEM(*espacios_lower, float, i, j) =
-		    xreal_lower[j];
-
-	    CV_MAT_ELEM(*espacios_upper, float, i, j) =
-		oldpop[i].xreal[j] + dim_penal / 2;
-	    if (CV_MAT_ELEM(*espacios_upper, float, i, j) > xreal_upper[j])
-		     
-		     
-		     
-		     
-		     
-		     
-		    CV_MAT_ELEM(*espacios_upper, float, i, j) =
-		    xreal_upper[j];
+    if (u >= 1.0 - 1.0e-9)
+	delta = delta_u;
+    else if (u <= 0.0 + 1.0e-9)
+	delta = delta_l;
+    else {
+	if (u < 0.5) {
+	    aa = 2.0 * u + (1.0 - 2.0 * u) * pow((1 + delta_l),
+						 (n_distribution_m + 1.0));
+	    delta = pow(aa, (1.0 / (n_distribution_m + 1.0))) - 1.0;
+	} else {
+	    aa = 2.0 * (1 - u) + 2.0 * (u - 0.5) * pow((1 - delta_u),
+						       (n_distribution_m +
+							1.0));
+	    delta = 1.0 - pow(aa, (1.0 / (n_distribution_m + 1.0)));
 	}
     }
-
-    cvReleaseMat(&x1);
-    cvReleaseMat(&x2);
+    if (delta < -1.0 || delta > 1.0) {
+	cout << "Error in mutation!! delta = " << delta << endl;
+	exit(-1);
+    }
+    return (delta);
 }
-
 
 /*====================================================================
-Releases the memory for all news
+Creates two children from parents p1 and p2, stores them in addresses
+pointed by c1 and c2.  low and high are the limits for x values and
+rand_var is the random variable used to create children points.
 ====================================================================*/
 void
-opencv_abejas::free_all()
+opencv_abejas::create_children(double p1, double p2, double *c1,
+			       double *c2, double low, double high,
+			       double *rand_var)
 {
-    delete[]oldpop;
-    delete[]newpop;
-    delete[]tempop;
+    double          difference,
+                    x_mean,
+                    beta,
+                    v2,
+                    v1;
+    double          u,
+                    distance,
+                    umax,
+                    temp,
+                    alpha;
+    int             flag;
 
-    oldpop = NULL;
-    newpop = NULL;
-    tempop = NULL;
+    if (c1 == NULL)
+	error_ptr_null("c1 in create_children");
+    if (c2 == NULL)
+	error_ptr_null("c2 in create_children");
+    if (rand_var == NULL)
+	error_ptr_null("rand_var in create_children");
+    flag = 0;
+    if (p1 > p2) {
+	temp = p1;
+	p1 = p2;
+	p2 = temp;
+	flag = 1;
+    }
+    x_mean = (p1 + p2) * 0.5;
+    difference = p2 - p1;
+    if ((p1 - low) < (high - p2))
+	distance = p1 - low;
+    else
+	distance = high - p2;
+    if (distance < 0.0)
+	distance = 0.0;
+    if (RIGID && (difference > EPSILON)) {
+	alpha = 1.0 + (2.0 * distance / difference);
+	umax =
+	    1.0 -
+	    (0.5 / pow((double) alpha, (double) (n_distribution_c + 1.0)));
+	(*rand_var) = umax * cvRandReal(&rng);
+    } else
+	(*rand_var) = cvRandReal(&rng);
+    beta = get_beta(*rand_var);
+    if (fabs(difference * beta) > INFINITY)
+	beta = INFINITY / difference;
+    v2 = x_mean + (beta * 0.5 * difference);
+    v1 = x_mean - (beta * 0.5 * difference);
+
+    if (v2 < low)
+	v2 = low;
+    if (v2 > high)
+	v2 = high;
+    if (v1 < low)
+	v2 = low;
+    if (v1 > high)
+	v2 = high;
+    *c2 = v2;
+    *c1 = v1;
+    if (flag == 1) {
+	temp = *c1;
+	*c1 = *c2;
+	*c2 = temp;
+    }
 }
 
-/**************************************************************************
- * Función que dibuja cada abeja en la imagen izquierda y derecha
- * *********************************************************************/
-void
-opencv_abejas::imprime_abejas()
+/*===================================================================
+Calculates beta value for given random number u (from 0 to 1)
+If input random numbers (u) are uniformly distributed for a set of
+inputs, this results in uniform distribution of beta values in case
+of BLX , and Binary Probability distribution simulation in case of
+SBX.
+
+====================================================================*/
+double
+opencv_abejas::get_beta(double u)
 {
-    double          Fe;
-    CvPoint         pt1,
-                    pt2;
+    double          beta;
 
-    for (int k = 0; k < pop_size; k++) {
-	pt1.y = (int) oldpop[k].u1;
-	if (modf(oldpop[k].u1, &Fe) >= 0.5)
-	    pt1.y++;
-	pt1.x = (int) oldpop[k].v1;
-	if (modf(oldpop[k].v1, &Fe) >= 0.5)
-	    pt1.x++;
-	pt2.y = (int) oldpop[k].u2;
-	if (modf(oldpop[k].u2, &Fe) >= 0.5)
-	    pt2.y++;
-	pt2.x = (int) oldpop[k].v2;
-	if (modf(oldpop[k].v2, &Fe) >= 0.5)
-	    pt2.x++;
-
-	cvCircle(buf_F1, pt1, 1, CV_RGB(247, 255, 12), -1);
-	cvCircle(buf_F2, pt2, 1, CV_RGB(247, 255, 12), -1);
-    }
-    cvShowImage("izquierda", buf_F1);
-    cvShowImage("derecha", buf_F2);
-    cvWaitKey(2);
-}
-
-void
-opencv_abejas::guarda_exploradoras()
-{
-    for (int i = 0; i < pop_size; i++) {
-	copy_individual(&oldpop[i], &nextpop[i]);
-    }
+    if (1.0 - u < EPSILON)
+	u = 1.0 - EPSILON;
+    if (u < 0.0)
+	u = 0.0;
+    if (u < 0.5)
+	beta = pow(2.0 * u, (1.0 / (n_distribution_c + 1.0)));
+    else
+	beta = pow((0.5 / (1.0 - u)), (1.0 / (n_distribution_c + 1.0)));
+    return beta;
 }
