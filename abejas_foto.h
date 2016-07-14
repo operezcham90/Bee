@@ -66,18 +66,25 @@ public:
 		states [3] = "recruitment (q3)";
 		states [4] = "successful exploration (q4)";
 		states [5] = "successful foraging (q5)";
+
 		delta[0] = 1;
 		delta[1] = 2;
+
 		delta[2] = 0;
 		delta[3] = 4;
+
 		delta[4] = 0;
 		delta[5] = 5;
+
 		delta[6] = 0;
 		delta[7] = 2;
+
 		delta[8] = 0;
 		delta[9] = 3;
+
 		delta[10] = 0;
 		delta[11] = 3;
+
 		for (int i = 0; i < 6; i++) {
 			omega[i] = 0;
 		}
@@ -196,7 +203,7 @@ public:
 	static void check_device(int *, char*);
 /*EVOLUTIONARY ALGORITHM */
    static int input_param_file(string);
-   static void initialize(int, int, IplImage *, IplImage *);
+   static void initialize();
    static void nomemory(const char *string);
    static void error_ptr_null(const char *string);
    static void copy_individual(INDIVIDUAL *indiv1, INDIVIDUAL *indiv2);

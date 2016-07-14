@@ -27,9 +27,6 @@ CvMat* Vtraslacion_der;
 CvMat* MIntrinsecos_izq;
 CvMat* MIntrinsecos_der;
 int inicio = 0;
-Machine m;
-int stage = 0; // modificacion
-int return_to_inactive = 0; // modificacion
 
 CvMat* x1;
 CvMat* x2;
@@ -41,14 +38,6 @@ CvRNG rng = cvRNG(0xffffffff);
 #define PWC_FPS_MASK		0x00FF0000
 #define PWC_FPS_FRMASK		0x003F0000
 
-
-void show_bees()
-{
-	for (int i = 0; i < 6; i++)
-	{
-		cout << m.getStateName(i) << ": " << m.countBeesInState(i) << endl;
-	}
-}
 
 int main(int argc, char** argv)
 {
@@ -207,13 +196,6 @@ void opencv_abejas::function_main(string arch_config, string nombreImg, string n
    double R_rate_rand = rate_rand;
    double sigma_share_orig = sigma_share;
 
-// add bees
-for (int i = 0; i < pop_size + pop_size_for; i++) {
-	m.addBee();
-}
-cout << endl;
-show_bees(); // modificacion
-
    //establecer tamaño del espacio de búsqueda
    for (int k=0; k < nvar_real; k++)
    {
@@ -254,13 +236,7 @@ show_bees(); // modificacion
 
 /**********************    E T A P A   D E  E X P L O R A C I O N *************************/
     gen_no = 0;
-    stage = 0; // modificacion
-    return_to_inactive = 0;
     initialize();   //inicializacion de la poblacion y otras var. globales
-    cout << "-- initialize() exploration --" << inicio << endl;
-    return_to_inactive = 1;
-    show_bees(); // modificacion
-
     tiempo = time(NULL);
     tmPtr = localtime(&tiempo);
     cerr<< "Inicio: "<< asctime(tmPtr) << endl;       //REGISTRA TIEMPO DE INICIO
@@ -272,18 +248,6 @@ show_bees(); // modificacion
     verifica_pop();
     for(gen_no = 1; gen_no <= max_gen; gen_no++)
        {
-         if (gen_no > 1) // modificacion
-         {
-            cout << "-- exploration new generation --" << endl;
-            // en este punto pop_size podria haber cambiado
-            for (int i = 0; i < pop_size; i++)
-            {
-                oldpop[i].state = m.giveFeedback(4, 0); // exp exitosa -> inactividad
-                oldpop[i].state = m.giveFeedback(0, 0); // inactividad -> exploracion
-            }
-            show_bees(); // modificacion
-         }
-
          numero_cross = numero_mut = numero_otros = 0;
          //GENERATION OF NEW POPULATION through SELECTION, XOVER , MUTATION & RANDOM
 	 // and PROJECTION into the images
@@ -312,8 +276,6 @@ getchar();*/
             sharing2D();
          }
          best_mu();             // ordenar poblacion de acuerdo al fitness y obtener los mu mejores
-         cout << "-- best_mu() exploration --" << endl;
-         show_bees(); // modificacion
        }
        /* Registrar tiempo final sin considerar tiempo de impresion de abejas en pantalla*/
       ftime(&tmb2);
@@ -328,13 +290,6 @@ getchar();*/
       ftime(&tmb1);
       asigna_recolectoras();
       int sit = pop_size;
-
-      stage = 1;
-      cout << "-- recruit --" << endl;
-      for (int i = 0; i < sit; i++)
-         oldpop[i].state = m.giveFeedback(4, 1); // exp exitosa -> recluta
-      show_bees(); // modificacion
-
       ftime(&tmb2);
       t_diff = (int) (1000.0 * (tmb2.time - tmb1.time) + (tmb2.millitm - tmb1.millitm));
       cerr<< "Etapa de Reclutamiento. Milisegundos:"<< t_diff<<endl;
@@ -349,7 +304,6 @@ getchar();*/
 	 
       /**********************  E T A P A   D E     R E C O L E C C I O N *************************/
     inicio = 0;
-    stage = 2; // modificacion
     ftime(&tmb1);
 
     for(int i = 0; i < sit; i++)   // por cada sitio que indicó la abeja exploradora:
@@ -371,9 +325,6 @@ getchar();*/
 	    }
 	    //inicializacion de la poblacion y otras var. globales
 	    initialize();
-            cout << "-- initialize() foraging --" << inicio << endl;
-            show_bees(); // modificacion
-
 
 	    for(int s = 0; s < pop_size; s++)    //evaluación población inicial
 	    {
@@ -381,19 +332,6 @@ getchar();*/
 	    }
 	    for(gen_no = 1; gen_no <= max_gen/2; gen_no++) //numero de generacion es la mitad de la etapa de exploracion
 	    {
-
-	       if (gen_no > 1) // modificacion
-	       {
-	          cout << "-- foraging new generation --" << endl;
-	          // en este punto pop_size podria haber cambiado
-	          for (int i = 0; i < pop_size; i++)
-	          {
-	             oldpop[i].state = m.giveFeedback(5, 0); // rec exitosa -> inactividad
-	             oldpop[i].state = m.giveFeedback(0, 1); // inactividad -> recoleccion
-	          }
-	          show_bees(); // modificacion
-	       }
-
 	      numero_cross = numero_mut = numero_otros = 0;
 	      //GENERATION OF NEW POPULATION through SELECTION, XOVER, MUTATION &RANDOM
 	      generate_new_pop();
@@ -415,8 +353,6 @@ getchar();*/
 	      }
 	       // ordenar poblacion de acuerdo al fitness y obtener los mu mejores
    	      best_mu();
-              cout << "-- best_mu() foraging --" << endl;
-              show_bees(); // modificacion
 	    }
       		//captura_abejas();
 	    imprime_abejas();
@@ -441,7 +377,7 @@ getchar();*/
    	xreal_lower[k] = xreal_lower_orig[k];
     	xreal_upper[k] = xreal_upper_orig[k];
       }
-      //inicio = 1; // modificacion, es correcto?
+      inicio = 1;
   }while(1);
   delete[] nextpop;
   cvReleaseMat(&sitios);
@@ -712,17 +648,6 @@ void opencv_abejas::initialize()
 	if (newpop == NULL) nomemory("newpop in initialize()");
 	if (tempop == NULL) nomemory("tempop in initialize()");
 
-        if (!return_to_inactive) {
-		int sf = m.countBeesInState(5);
-		int rec = m.countBeesInState(3);
-		for (int k = 0; k < sf; k++) {
-			m.giveFeedback(5, 0);
-		}
-		for (int k = 0; k < rec; k++) {
-			m.giveFeedback(3, 0);
-		}
-        }
-
 	if(!inicio)
 	{
 		for(int k=0; k < pop_size; k++)
@@ -734,14 +659,6 @@ void opencv_abejas::initialize()
 			{
 				oldpop[k].xreal[j] = (double)(cvRandReal(&rng)*(xreal_upper[j]-xreal_lower[j]) + xreal_lower[j]);
 			}
-
-			if (stage == 0) // modificacion fase exploracion
-			{
-				oldpop[k].state = m.giveFeedback(0, 0); // inactive -> exploration
-			} else if (stage == 2) // fase recoleccion
-                        {
-				oldpop[k].state = m.giveFeedback(0, 1); // inactive -> foraging
-                        }
 		}
 	}
 	else
@@ -1575,19 +1492,6 @@ void opencv_abejas::best_mu()
    for(int i = 0; i < pop_size; i++)
    {
       copy_individual(&tempop[(int)CV_MAT_ELEM( *M, float, i, 1)], &oldpop[i]);
-      if (stage == 0)
-      {
-         oldpop[i].state = m.giveFeedback(1, 1); // modificacion explora -> exp exitosa
-         // hacer cambios al tamano de la poblacion dependiendo de los resultados de sharing3D
-         // pasar algunas abejas (las peores) a inactividad: m.giveFeedback(4, 0);
-         // cambiar el valor de pop_size segun corresponda
-      } else if (stage == 2)
-      {
-         oldpop[i].state = m.giveFeedback(2, 1); // modificacion recolectora -> rec exitosa
-         // hacer cambios al tamano de la poblacion dependiendo de los resultados de sharing3D
-         // pasar algunas abejas (las peores) a inactividad: m.giveFeedback(5, 0);
-         // cambiar el valor de pop_size segun corresponda
-      }
    }
 }
 
