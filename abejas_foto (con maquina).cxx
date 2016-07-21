@@ -30,7 +30,6 @@ int inicio = 0;
 Machine m;
 int stage = 0; // modificacion
 int return_to_inactive = 0; // modificacion
-int bad_bees = 0;
 
 CvMat* x1;
 CvMat* x2;
@@ -307,7 +306,6 @@ getchar();*/
          if(sigma_share != 0)
          {
             sharing3D();
-            cout << "-- sharing3D explorarion -- " << bad_bees << "/" << (pop_size + pop_size_off) << " = " << ((bad_bees*100)/(pop_size + pop_size_off)) << "%" << endl;
          }
          else
          {
@@ -410,7 +408,6 @@ getchar();*/
 	      if(sigma_share != 0)
 	      {
 		sharing3D();
-                cout << "-- sharing3D foraging -- " << bad_bees << "/" << (pop_size + pop_size_off) << " = " << ((bad_bees*100)/(pop_size + pop_size_off)) << "%" << endl;
 	      }
 	      else
    	      {
@@ -1502,7 +1499,6 @@ void opencv_abejas::sh(CvRect r)
 
 void opencv_abejas::sharing3D()
 {
-   bad_bees = 0; // modificacion
    for(int i = 0; i < pop_size + pop_size_off; i++)
    {
       if(tempop[i].obj != -100)
@@ -1513,10 +1509,8 @@ void opencv_abejas::sharing3D()
       {
          sum += sh(i, j);
       }
-      if(sum > 1) {
-         bad_bees++; // modificacion
+      if(sum > 1)
          tempop[i].obj  /= (sum);
-      }
       else
          tempop[i].obj  /= (sum);
       }
