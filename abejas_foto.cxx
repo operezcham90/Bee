@@ -31,6 +31,8 @@ Machine m;
 int stage = 0; // modificacion
 int return_to_inactive = 0; // modificacion
 int bad_bees = 0;
+double r_sharing = 0; // modificacion ratio sharing
+vector<int> bad_bees_index;
 
 CvMat* x1;
 CvMat* x2;
@@ -253,6 +255,21 @@ show_bees(); // modificacion
     int maxX = (int)buf_F1->width;
     int maxY = (int)buf_F1->height;
 
+    // modificacion
+    // calcular proporsion de sigma
+    sigma_share = sigma_share_orig;
+    double vol = 1;
+    for (int k=0; k < nvar_real; k++)
+    {
+        double lk = abs(xreal_lower_orig[k] - xreal_upper_orig[k]);
+        vol *= lk;
+    }
+    cout << "-- volume of search space --" << vol << endl;
+    double edge = cbrt(vol);
+    cout << "-- edge of search space --" << edge << endl;
+    r_sharing = sigma_share / edge;
+    cout << "-- r_sharing --" << sigma_share << "/" << edge << " = " << r_sharing << endl;
+
 /**********************    E T A P A   D E  E X P L O R A C I O N *************************/
     gen_no = 0;
     stage = 0; // modificacion
@@ -371,6 +388,21 @@ getchar();*/
 	      xreal_lower[k] = CV_MAT_ELEM(*espacios_lower, float, i, k);
               xreal_upper[k] = CV_MAT_ELEM(*espacios_upper, float, i, k);
 	    }
+            // modificacion
+            // calcular proporsion de sigma
+            sigma_share = sigma_share_orig;
+            vol = 1;
+            for (int k=0; k < nvar_real; k++)
+            {
+               double lk = abs(xreal_lower[k] - xreal_upper[k]);
+               vol *= lk;
+            }
+            cout << "-- volume of search space [foraging] --" << vol << endl;
+            edge = cbrt(vol);
+            cout << "-- edge of search space --" << edge << endl;
+            sigma_share = edge * r_sharing;
+            cout << "-- sigma_share --" << edge << "*" << r_sharing << " = " << sigma_share << endl;
+
 	    //inicializacion de la poblacion y otras var. globales
 	    initialize();
             cout << "-- initialize() foraging --" << inicio << endl;
@@ -1515,10 +1547,12 @@ void opencv_abejas::sharing3D()
       }
       if(sum > 1) {
          bad_bees++; // modificacion
-         tempop[i].obj  /= (sum);
+         bad_bees_index.push_back(i);
+         //tempop[i].obj  /= (sum); //modificacion
       }
-      else
-         tempop[i].obj  /= (sum);
+      else {
+         //tempop[i].obj  /= (sum); //modificacion
+      }
       }
    }
 }
