@@ -32,7 +32,9 @@ int stage = 0; // modificacion
 int return_to_inactive = 0; // modificacion
 int bad_bees = 0;
 double r_sharing = 0; // modificacion ratio sharing
-vector<int> bad_bees_index;
+double rate_dif = 0;
+double current_rate_cross = 0;
+double current_rate_mut = 0;
 
 CvMat* x1;
 CvMat* x2;
@@ -287,6 +289,7 @@ show_bees(); // modificacion
       {
          fitness_function_exp(&oldpop[s], maxX, maxY, buf_F1, buf_F2);
       }
+    rate_dif = 0; // modificacion
     verifica_pop();
     for(gen_no = 1; gen_no <= max_gen; gen_no++)
        {
@@ -301,6 +304,14 @@ show_bees(); // modificacion
             }
             show_bees(); // modificacion
          }
+
+         // modificacion en este punto pop_size podria haber cambiado
+         rate_cross = R_rate_cross;
+         rate_mut = R_rate_mut;
+         rate_rand = R_rate_rand;
+         current_rate_cross = rate_cross;
+         current_rate_mut = rate_mut;
+         verifica_pop();
 
          numero_cross = numero_mut = numero_otros = 0;
          //GENERATION OF NEW POPULATION through SELECTION, XOVER , MUTATION & RANDOM
@@ -382,6 +393,7 @@ getchar();*/
 	    rate_cross = rate_cross_rec;
 	    rate_mut = rate_mut_rec;
 	    rate_rand = rate_rand_rec;
+            rate_dif = 0; // modificacion
    	    verifica_pop();
 	    for(int k = 0; k < nvar_real; k++)
 	    {
@@ -427,6 +439,14 @@ getchar();*/
 	          }
 	          show_bees(); // modificacion
 	       }
+
+              // modificacion en este punto pop_size podria haber cambiado
+              rate_cross = rate_cross_rec;
+              rate_mut = rate_mut_rec;
+              rate_rand = rate_rand_rec;
+              current_rate_cross = rate_cross;
+              current_rate_mut = rate_mut;
+              verifica_pop();
 
 	      numero_cross = numero_mut = numero_otros = 0;
 	      //GENERATION OF NEW POPULATION through SELECTION, XOVER, MUTATION &RANDOM
@@ -1004,6 +1024,17 @@ void opencv_abejas::verifica_pop()
 	int num_cross, num_mut, num_rand, band;
    double temp1, temp2;
 
+//modificacion
+if (rate_dif > 0) {
+   rate_rand += rate_dif * 2;
+   rate_mut -= rate_dif;
+   rate_cross -= rate_dif;
+}
+cout << "-- rate_rand: " << rate_rand << endl;
+cout << "-- rate_mut: " << rate_mut << endl;
+cout << "-- rate_cross: " << rate_cross << endl;
+cout << "-- pop_size_off begin: " << pop_size_off << endl;
+
    temp1 = pop_size_off * rate_cross;
    num_cross = (int)temp1;
    if(modf(temp1, &temp2) >= 0.5)
@@ -1019,7 +1050,16 @@ void opencv_abejas::verifica_pop()
    if((num_mut + num_cross + num_rand) != pop_size_off)
    {
       //cout<<"Advertencia: La Poblacion cambiara para cumplir proporcion de operadores evolutivos, de: "<<pop_size_off<<" a: "<<num_mut + num_cross + num_rand<<endl;
-      pop_size_off = num_mut + num_cross + num_rand;
+      
+      //modificacion lo anterior podria causar error de segmentacion porque podria aumentar el tamaño de pop_size_offset
+      if (pop_size_off > num_mut + num_cross + num_rand) {
+         //pop_size_off = num_mut + num_cross + num_rand;
+         int dif = pop_size_off - (num_mut + num_cross + num_rand);
+         num_mut += dif;
+      } else {
+         int dif = (num_mut + num_cross + num_rand) - pop_size_off;
+         num_mut -= dif; // se usa num_mut porque suele ser la mayor subpoblacion
+      }
       band = 0;
    }
  	if(num_cross % 2 != 0)
@@ -1038,6 +1078,11 @@ void opencv_abejas::verifica_pop()
    rate_cross = num_cross;
    rate_mut = num_mut;
    rate_rand = num_rand;
+
+cout << "-- num_rand: " << rate_rand << endl;
+cout << "-- num_mut: " << rate_mut << endl;
+cout << "-- num_cross: " << rate_cross << endl;
+cout << "-- pop_size_off end: " << pop_size_off << endl;
 }
 
 /*====================================================================
@@ -1547,11 +1592,10 @@ void opencv_abejas::sharing3D()
       }
       if(sum > 1) {
          bad_bees++; // modificacion
-         bad_bees_index.push_back(i);
-         //tempop[i].obj  /= (sum); //modificacion
+         tempop[i].obj  /= (sum);
       }
       else {
-         //tempop[i].obj  /= (sum); //modificacion
+         tempop[i].obj  /= (sum);
       }
       }
    }
@@ -1604,6 +1648,14 @@ double opencv_abejas::distanc(int one, int two, int op)
  * ***********************************************************************/
 void opencv_abejas::best_mu()
 {
+double increment = 0.01;
+int bad_bee_percent = (bad_bees * 100) / (pop_size + pop_size_off);
+if (bad_bee_percent > 50 && current_rate_cross > rate_dif + increment && current_rate_mut > rate_dif + increment)
+   rate_dif += increment;
+if (bad_bee_percent < 20 && rate_dif >= increment)
+   rate_dif -= increment;
+cout << "-- rate_dif: " << rate_dif << endl;
+
 	CvMat *M = cvCreateMat(pop_size+pop_size_off, 2, CV_32FC1);
 
    for(int i = 0; i < pop_size+pop_size_off; i ++)
