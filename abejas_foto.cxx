@@ -35,6 +35,8 @@ double r_sharing = 0; // modificacion ratio sharing
 double rate_dif = 0;
 double current_rate_cross = 0;
 double current_rate_mut = 0;
+int pop_dif = 0; // modificacion
+int real_pop_size = 0; // modificacion
 
 CvMat* x1;
 CvMat* x2;
@@ -290,6 +292,8 @@ show_bees(); // modificacion
          fitness_function_exp(&oldpop[s], maxX, maxY, buf_F1, buf_F2);
       }
     rate_dif = 0; // modificacion
+    pop_dif = 0; // modificacion
+    real_pop_size = pop_size; // modificacion
     verifica_pop();
     for(gen_no = 1; gen_no <= max_gen; gen_no++)
        {
@@ -394,6 +398,8 @@ getchar();*/
 	    rate_mut = rate_mut_rec;
 	    rate_rand = rate_rand_rec;
             rate_dif = 0; // modificacion
+            pop_dif = 0; // modificacion
+            real_pop_size = pop_size; // modificacion
    	    verifica_pop();
 	    for(int k = 0; k < nvar_real; k++)
 	    {
@@ -1648,13 +1654,20 @@ double opencv_abejas::distanc(int one, int two, int op)
  * ***********************************************************************/
 void opencv_abejas::best_mu()
 {
+
 double increment = 0.01;
 int bad_bee_percent = (bad_bees * 100) / (pop_size + pop_size_off);
+int increment_pop = ((real_pop_size - pop_dif) * (bad_bee_percent / 2)) / 100;
+// aumentar hijos aleatorios
 if (bad_bee_percent > 50 && current_rate_cross > rate_dif + increment && current_rate_mut > rate_dif + increment)
    rate_dif += increment;
+//disminuir hijos aleatorios
 if (bad_bee_percent < 20 && rate_dif >= increment)
    rate_dif -= increment;
+if (bad_bee_percent > 60 && real_pop_size - (pop_dif + increment_pop) > 0)
+   pop_dif += increment_pop;
 cout << "-- rate_dif: " << rate_dif << endl;
+cout << "-- pop_dif: " << pop_dif << " real_pop_size: " << real_pop_size << endl;
 
 	CvMat *M = cvCreateMat(pop_size+pop_size_off, 2, CV_32FC1);
 
@@ -1664,7 +1677,8 @@ cout << "-- rate_dif: " << rate_dif << endl;
 		CV_MAT_ELEM( *M, float, i, 1) = (float)i;
    }
 	opencv_algos::quickSort(M, pop_size+pop_size_off);
-   for(int i = 0; i < pop_size; i++)
+   //for(int i = 0; i < pop_size; i++)
+   for (int i = 0; i < pop_size - pop_dif; i++) // modificacion
    {
       copy_individual(&tempop[(int)CV_MAT_ELEM( *M, float, i, 1)], &oldpop[i]);
       if (stage == 0)
@@ -1681,6 +1695,16 @@ cout << "-- rate_dif: " << rate_dif << endl;
          // cambiar el valor de pop_size segun corresponda
       }
    }
+   for (int k = 0; k < pop_dif; k++) {
+	if (stage == 0)
+         {
+            m.giveFeedback(1, 0); // modificacion explora -> inactividad
+         } else if (stage == 2)
+         {
+            m.giveFeedback(2, 0); // modificacion recolectora -> inactividad
+         }
+   }
+   pop_size = real_pop_size - pop_dif;
 }
 
 
