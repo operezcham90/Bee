@@ -54,7 +54,7 @@ void show_bees()
 {
 	for (int i = 0; i < 6; i++)
 	{
-		cout << m.getStateName(i) << ": " << m.countBeesInState(i) << endl;
+		//cout << m.getStateName(i) << ": " << m.countBeesInState(i) << endl;
 	}
 }
 
@@ -269,18 +269,18 @@ show_bees(); // modificacion
         double lk = abs(xreal_lower_orig[k] - xreal_upper_orig[k]);
         vol *= lk;
     }
-    cout << "-- volume of search space --" << vol << endl;
+    //cout << "-- volume of search space --" << vol << endl;
     double edge = cbrt(vol);
-    cout << "-- edge of search space --" << edge << endl;
+    //cout << "-- edge of search space --" << edge << endl;
     r_sharing = sigma_share / edge;
-    cout << "-- r_sharing --" << sigma_share << "/" << edge << " = " << r_sharing << endl;
+    //cout << "-- r_sharing --" << sigma_share << "/" << edge << " = " << r_sharing << endl;
 
 /**********************    E T A P A   D E  E X P L O R A C I O N *************************/
     gen_no = 0;
     stage = 0; // modificacion
     return_to_inactive = 0;
     initialize();   //inicializacion de la poblacion y otras var. globales
-    cout << "-- initialize() exploration --" << inicio << endl;
+    //cout << "-- initialize() exploration --" << inicio << endl;
     return_to_inactive = 1;
     show_bees(); // modificacion
 
@@ -300,7 +300,7 @@ show_bees(); // modificacion
        {
          if (gen_no > 1) // modificacion
          {
-            cout << "-- exploration new generation --" << endl;
+            //cout << "-- exploration new generation --" << endl;
             // en este punto pop_size podria haber cambiado
             for (int i = 0; i < pop_size; i++)
             {
@@ -340,14 +340,14 @@ getchar();*/
          if(sigma_share != 0)
          {
             sharing3D();
-            cout << "-- sharing3D explorarion -- " << bad_bees << "/" << (pop_size + pop_size_off) << " = " << ((bad_bees*100)/(pop_size + pop_size_off)) << "%" << endl;
+            //cout << "-- sharing3D explorarion -- " << bad_bees << "/" << (pop_size + pop_size_off) << " = " << ((bad_bees*100)/(pop_size + pop_size_off)) << "%" << endl;
          }
          else
          {
             sharing2D();
          }
          best_mu();             // ordenar poblacion de acuerdo al fitness y obtener los mu mejores
-         cout << "-- best_mu() exploration --" << endl;
+         //cout << "-- best_mu() exploration --" << endl;
          show_bees(); // modificacion
        }
        /* Registrar tiempo final sin considerar tiempo de impresion de abejas en pantalla*/
@@ -358,22 +358,28 @@ getchar();*/
       cerr<< "Etapa de Exploración. Milisegundos:"<< t_diff<<endl;
 
       // Escribir los resultados
-      result_file.open("resultados.txt", fstream::app);
-      result_file << "===========RESULTADOS============" << endl;
-      result_file << "SESION: " << asctime(tmPtr);
-      result_file << "=================================" << endl;
-      result_file << "u1, v1, u2, v2, x, y, z, obj" << endl;
-      result_file.close();
+      //result_file.open("resultados.txt", fstream::app);
+      //result_file << "===========RESULTADOS============" << endl;
+      //result_file << "SESION: " << asctime(tmPtr);
+      //result_file << "=================================" << endl;
+      //result_file << "u1, v1, u2, v2, x, y, z, obj" << endl;
+      //result_file.close();
       imprime_abejas();
       guarda_exploradoras();
 
       /**********************  E T A P A   D E    R E C L U T A M I E N T O *************************/
       ftime(&tmb1);
+
+// modificacion
+// agregar las abejas que sobran de exploracion
+pop_size_for += pop_dif;
+//cout << "-- sobraron " << pop_dif << " abejas exploradoras pop_size_for: " << pop_size_for << endl;
+
       asigna_recolectoras();
       int sit = pop_size;
 
       stage = 1;
-      cout << "-- recruit --" << endl;
+      //cout << "-- recruit --" << endl;
       for (int i = 0; i < sit; i++)
          oldpop[i].state = m.giveFeedback(4, 1); // exp exitosa -> recluta
       show_bees(); // modificacion
@@ -395,7 +401,7 @@ getchar();*/
     stage = 2; // modificacion
     ftime(&tmb1);
 
-    for(int i = 0; i < sit; i++)   // por cada sitio que indicó la abeja exploradora:
+    for(int i = sit - 1; i >= 0; i--)   // por cada sitio que indicó la abeja exploradora:
     {
           if(CV_MAT_ELEM(*sitios, float, i, 0) > 0)
           {
@@ -406,6 +412,12 @@ getchar();*/
 	    rate_cross = rate_cross_rec;
 	    rate_mut = rate_mut_rec;
 	    rate_rand = rate_rand_rec;
+
+// modificacion
+// agregar las abejas que sobran de la recoleccion anterior
+pop_size += pop_dif;
+//cout << "-- sobraron " << pop_dif << " abejas recolectoras pop_size: " << pop_size << endl;
+
             rate_dif = 0; // modificacion
             pop_dif = 0; // modificacion
             real_pop_size = pop_size; // modificacion
@@ -424,15 +436,15 @@ getchar();*/
                double lk = abs(xreal_lower[k] - xreal_upper[k]);
                vol *= lk;
             }
-            cout << "-- volume of search space [foraging] --" << vol << endl;
+            //cout << "-- volume of search space [foraging] --" << vol << endl;
             edge = cbrt(vol);
-            cout << "-- edge of search space --" << edge << endl;
+            //cout << "-- edge of search space --" << edge << endl;
             sigma_share = edge * r_sharing;
-            cout << "-- sigma_share --" << edge << "*" << r_sharing << " = " << sigma_share << endl;
+            //cout << "-- sigma_share --" << edge << "*" << r_sharing << " = " << sigma_share << endl;
 
 	    //inicializacion de la poblacion y otras var. globales
 	    initialize();
-            cout << "-- initialize() foraging --" << inicio << endl;
+            //cout << "-- initialize() foraging --" << inicio << endl;
             show_bees(); // modificacion
 
 
@@ -445,7 +457,7 @@ getchar();*/
 
 	       if (gen_no > 1) // modificacion
 	       {
-	          cout << "-- foraging new generation --" << endl;
+	          //cout << "-- foraging new generation --" << endl;
 	          // en este punto pop_size podria haber cambiado
 	          for (int i = 0; i < pop_size; i++)
 	          {
@@ -477,7 +489,7 @@ getchar();*/
 	      if(sigma_share != 0)
 	      {
 		sharing3D();
-                cout << "-- sharing3D foraging -- " << bad_bees << "/" << (pop_size + pop_size_off) << " = " << ((bad_bees*100)/(pop_size + pop_size_off)) << "%" << endl;
+                //cout << "-- sharing3D foraging -- " << bad_bees << "/" << (pop_size + pop_size_off) << " = " << ((bad_bees*100)/(pop_size + pop_size_off)) << "%" << endl;
 	      }
 	      else
    	      {
@@ -485,7 +497,7 @@ getchar();*/
 	      }
 	       // ordenar poblacion de acuerdo al fitness y obtener los mu mejores
    	      best_mu();
-              cout << "-- best_mu() foraging --" << endl;
+              //cout << "-- best_mu() foraging --" << endl;
               show_bees(); // modificacion
 	    }
       		//captura_abejas();
@@ -1045,10 +1057,10 @@ if (rate_dif > 0) {
    rate_mut -= rate_dif;
    rate_cross -= rate_dif;
 }
-cout << "-- rate_rand: " << rate_rand << endl;
-cout << "-- rate_mut: " << rate_mut << endl;
-cout << "-- rate_cross: " << rate_cross << endl;
-cout << "-- pop_size_off begin: " << pop_size_off << endl;
+//cout << "-- rate_rand: " << rate_rand << endl;
+//cout << "-- rate_mut: " << rate_mut << endl;
+//cout << "-- rate_cross: " << rate_cross << endl;
+//cout << "-- pop_size_off begin: " << pop_size_off << endl;
 
    temp1 = pop_size_off * rate_cross;
    num_cross = (int)temp1;
@@ -1094,10 +1106,10 @@ cout << "-- pop_size_off begin: " << pop_size_off << endl;
    rate_mut = num_mut;
    rate_rand = num_rand;
 
-cout << "-- num_rand: " << rate_rand << endl;
-cout << "-- num_mut: " << rate_mut << endl;
-cout << "-- num_cross: " << rate_cross << endl;
-cout << "-- pop_size_off end: " << pop_size_off << endl;
+//cout << "-- num_rand: " << rate_rand << endl;
+//cout << "-- num_mut: " << rate_mut << endl;
+//cout << "-- num_cross: " << rate_cross << endl;
+//cout << "-- pop_size_off end: " << pop_size_off << endl;
 }
 
 /*====================================================================
@@ -1677,8 +1689,8 @@ if (bad_bee_percent > 60 && real_pop_size - (pop_dif + increment_pop) > 0)
    pop_dif += increment_pop;
 if (bad_bee_percent < 20 && pop_dif >= increment_pop)
    pop_dif -= increment_pop;
-cout << "-- rate_dif: " << rate_dif << endl;
-cout << "-- pop_dif: " << pop_dif << " real_pop_size: " << real_pop_size << endl;
+//cout << "-- rate_dif: " << rate_dif << endl;
+//cout << "-- pop_dif: " << pop_dif << " real_pop_size: " << real_pop_size << endl;
 
 	CvMat *M = cvCreateMat(pop_size+pop_size_off, 2, CV_32FC1);
 
@@ -1689,7 +1701,7 @@ cout << "-- pop_dif: " << pop_dif << " real_pop_size: " << real_pop_size << endl
    }
 	opencv_algos::quickSort(M, pop_size+pop_size_off);
    //for(int i = 0; i < pop_size; i++)
-   for (int i = 0; i < pop_size - pop_dif; i++) // modificacion
+   for (int i = 0; i < real_pop_size - pop_dif; i++) // modificacion
    {
       copy_individual(&tempop[(int)CV_MAT_ELEM( *M, float, i, 1)], &oldpop[i]);
       if (stage == 0)
@@ -1810,7 +1822,7 @@ void opencv_abejas::imprime_abejas()
 	double Fe;
 	CvPoint pt1, pt2;
 
-        result_file.open("resultados.txt", fstream::app);
+        //result_file.open("resultados.txt", fstream::app);
 
 	for(int k = 0; k < pop_size; k++)
 	{
@@ -1830,16 +1842,16 @@ void opencv_abejas::imprime_abejas()
 		cvCircle(buf_F1, pt1, 1, CV_RGB(247, 255, 12), -1);
 		cvCircle(buf_F2, pt2, 1, CV_RGB(247, 255, 12), -1);
 
-           result_file << oldpop[k].u1;
-           result_file << ", " << oldpop[k].v1;
-           result_file << ", " << oldpop[k].u2;
-           result_file << ", " << oldpop[k].v2;
-           result_file << ", " << oldpop[k].xreal[0];
-           result_file << ", " << oldpop[k].xreal[1];
-           result_file << ", " << oldpop[k].xreal[2];
-           result_file << ", " << oldpop[k].obj << endl;
+           //result_file << oldpop[k].u1;
+           //result_file << ", " << oldpop[k].v1;
+           //result_file << ", " << oldpop[k].u2;
+           //result_file << ", " << oldpop[k].v2;
+           //result_file << ", " << oldpop[k].xreal[0];
+           //result_file << ", " << oldpop[k].xreal[1];
+           //result_file << ", " << oldpop[k].xreal[2];
+           //result_file << ", " << oldpop[k].obj << endl;
 	}
-        result_file.close();
+        //result_file.close();
 
 	cvShowImage("izquierda",buf_F1);
 	cvShowImage("derecha",buf_F2);
