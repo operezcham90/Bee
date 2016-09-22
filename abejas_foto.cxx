@@ -214,6 +214,7 @@ void opencv_abejas::function_main(string arch_config, string nombreImg, string n
    double R_rate_mut = rate_mut;
    double R_rate_rand = rate_rand;
    double sigma_share_orig = sigma_share;
+   int R_pop_size_for = pop_size_for;
 
 // add bees
 for (int i = 0; i < pop_size + pop_size_for; i++) {
@@ -358,12 +359,12 @@ getchar();*/
       cerr<< "Etapa de Exploración. Milisegundos:"<< t_diff<<endl;
 
       // Escribir los resultados
-      //result_file.open("resultados.txt", fstream::app);
-      //result_file << "===========RESULTADOS============" << endl;
-      //result_file << "SESION: " << asctime(tmPtr);
-      //result_file << "=================================" << endl;
-      //result_file << "u1, v1, u2, v2, x, y, z, obj" << endl;
-      //result_file.close();
+      result_file.open("resultados.txt", fstream::app);
+      result_file << "===========RESULTADOS============" << endl;
+      result_file << "SESION: " << asctime(tmPtr);
+      result_file << "=================================" << endl;
+      result_file << "u1, v1, u2, v2, x, y, z, obj" << endl;
+      result_file.close();
       imprime_abejas();
       guarda_exploradoras();
 
@@ -518,6 +519,7 @@ pop_size += pop_dif;
       rate_mut = R_rate_mut;
       rate_rand = R_rate_rand;
       sigma_share = sigma_share_orig;
+      pop_size_for = R_pop_size_for;
       for (int k=0; k < nvar_real; k++)
       {
    	xreal_lower[k] = xreal_lower_orig[k];
@@ -1822,7 +1824,7 @@ void opencv_abejas::imprime_abejas()
 	double Fe;
 	CvPoint pt1, pt2;
 
-        //result_file.open("resultados.txt", fstream::app);
+        result_file.open("resultados.txt", fstream::app);
 
 	for(int k = 0; k < pop_size; k++)
 	{
@@ -1842,16 +1844,16 @@ void opencv_abejas::imprime_abejas()
 		cvCircle(buf_F1, pt1, 1, CV_RGB(247, 255, 12), -1);
 		cvCircle(buf_F2, pt2, 1, CV_RGB(247, 255, 12), -1);
 
-           //result_file << oldpop[k].u1;
-           //result_file << ", " << oldpop[k].v1;
-           //result_file << ", " << oldpop[k].u2;
-           //result_file << ", " << oldpop[k].v2;
-           //result_file << ", " << oldpop[k].xreal[0];
-           //result_file << ", " << oldpop[k].xreal[1];
-           //result_file << ", " << oldpop[k].xreal[2];
-           //result_file << ", " << oldpop[k].obj << endl;
+           result_file << oldpop[k].u1;
+           result_file << ", " << oldpop[k].v1;
+           result_file << ", " << oldpop[k].u2;
+           result_file << ", " << oldpop[k].v2;
+           result_file << ", " << oldpop[k].xreal[0];
+           result_file << ", " << oldpop[k].xreal[1];
+           result_file << ", " << oldpop[k].xreal[2];
+           result_file << ", " << oldpop[k].obj << endl;
 	}
-        //result_file.close();
+        result_file.close();
 
 	cvShowImage("izquierda",buf_F1);
 	cvShowImage("derecha",buf_F2);
