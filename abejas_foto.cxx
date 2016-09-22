@@ -35,6 +35,7 @@ double r_sharing = 0; // modificacion ratio sharing
 double rate_dif = 0;
 double current_rate_cross = 0;
 double current_rate_mut = 0;
+ofstream result_file;
 
 CvMat* x1;
 CvMat* x2;
@@ -351,6 +352,14 @@ getchar();*/
       tiempo = time(NULL);
       tmPtr = localtime(&tiempo);
       cerr<< "Etapa de Exploración. Milisegundos:"<< t_diff<<endl;
+
+      // Escribir los resultados
+      result_file.open("resultados.txt", fstream::app);
+      result_file << "===========RESULTADOS============" << endl;
+      result_file << "SESION: " << asctime(tmPtr);
+      result_file << "=================================" << endl;
+      result_file << "u1, v1, u2, v2, x, y, z, obj" << endl;
+      result_file.close();
       imprime_abejas();
       guarda_exploradoras();
 
@@ -1775,6 +1784,8 @@ void opencv_abejas::imprime_abejas()
 	double Fe;
 	CvPoint pt1, pt2;
 
+	result_file.open("resultados.txt", fstream::app);
+
 	for(int k = 0; k < pop_size; k++)
 	{
 		pt1.y = (int)oldpop[k].u1;
@@ -1792,7 +1803,18 @@ void opencv_abejas::imprime_abejas()
 
 		cvCircle(buf_F1, pt1, 1, CV_RGB(247, 255, 12), -1);
 		cvCircle(buf_F2, pt2, 1, CV_RGB(247, 255, 12), -1);
+
+		result_file << oldpop[k].u1;
+           result_file << ", " << oldpop[k].v1;
+           result_file << ", " << oldpop[k].u2;
+           result_file << ", " << oldpop[k].v2;
+           result_file << ", " << oldpop[k].xreal[0];
+           result_file << ", " << oldpop[k].xreal[1];
+           result_file << ", " << oldpop[k].xreal[2];
+           result_file << ", " << oldpop[k].obj << endl;
 	}
+        result_file.close();
+
 	cvShowImage("izquierda",buf_F1);
 	cvShowImage("derecha",buf_F2);
 	cvWaitKey(2);
